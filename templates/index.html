@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>XAUUSD signal desk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+:root{
+  --ink:#141A24; --panel:#1A2230; --raise:#212B3B; --line:#2B3647;
+  --text:#ECE6D6; --muted:#8E98A8; --brass:#CDA434;
+  --bull:#3DB489; --bear:#E4636E;
+  --font:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--ink);color:var(--text);font:14px/1.45 var(--font);font-variant-numeric:tabular-nums}
+button{font:inherit;color:inherit}
+button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+
+.top{display:flex;align-items:center;gap:28px;padding:14px 22px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.quote{display:flex;align-items:baseline;gap:12px}
+.quote .sym{font-weight:600;color:var(--muted)}
+.quote .px{font-size:30px;font-weight:600;color:var(--brass);letter-spacing:-.01em}
+.quote .chg{font-weight:500}
+.facts{display:flex;gap:22px;flex-wrap:wrap;color:var(--muted)}
+.facts b{color:var(--text);font-weight:500}
+.controls{margin-left:auto;display:flex;gap:10px;align-items:center}
+.tf{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:3px}
+.tf button{background:none;border:0;padding:5px 11px;border-radius:6px;cursor:pointer;color:var(--muted)}
+.tf button[aria-pressed=true]{background:var(--raise);color:var(--text)}
+.ghost{background:none;border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer}
+.ghost:hover{border-color:var(--muted)}
+
+.banner{display:none;padding:10px 22px;background:#3A2A12;color:#F2D9A2;border-bottom:1px solid #5C4418}
+.banner.err{background:#3B1D22;color:#F6C5CB;border-color:#6A2C35}
+
+main{display:grid;grid-template-columns:minmax(0,1fr) 380px;height:calc(100% - 66px)}
+.chartwrap{position:relative;min-height:420px;border-right:1px solid var(--line)}
+#chart{position:absolute;inset:0}
+#zones{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2}
+.legend{position:absolute;left:14px;top:10px;z-index:3;display:flex;gap:6px;flex-wrap:wrap}
+.legend button{background:rgba(26,34,48,.85);border:1px solid var(--line);border-radius:6px;padding:3px 9px;cursor:pointer;font-size:12px;color:var(--muted)}
+.legend button[aria-pressed=true]{color:var(--text);border-color:#445066}
+
+aside{overflow-y:auto;padding:20px 22px 30px}
+aside h2{font-size:13px;font-weight:600;color:var(--muted);margin:26px 0 10px}
+
+/* the signal: one bold element */
+.verb{font-size:56px;font-weight:700;line-height:1;letter-spacing:-.03em;margin:0}
+.verb.buy{color:var(--bull)} .verb.sell{color:var(--bear)} .verb.wait{color:var(--muted)}
+.status{margin-top:8px;color:var(--muted)}
+.status b{color:var(--text);font-weight:500}
+.ladder{display:grid;grid-template-columns:10px 1fr auto;gap:0 14px;margin-top:20px}
+.rail{grid-row:1/4;border-radius:5px;background:linear-gradient(var(--c1) 0 var(--split),var(--c2) var(--split) 100%)}
+.rung{display:flex;justify-content:space-between;align-items:baseline;padding:9px 0;border-bottom:1px solid var(--line)}
+.rung:last-of-type{border-bottom:0}
+.rung span{color:var(--muted)}
+.rung strong{font-size:19px;font-weight:600}
+.rung.entry strong{color:var(--brass)}
+.rung em{font-style:normal;color:var(--muted);font-size:12px;margin-left:8px}
+.score{margin-top:18px}
+.score .bar{height:6px;border-radius:3px;background:var(--raise);overflow:hidden;margin-top:6px}
+.score .bar i{display:block;height:100%;background:var(--brass)}
+.checks{list-style:none;padding:0;margin:14px 0 0}
+.checks li{display:flex;gap:10px;padding:4px 0}
+.checks li::before{content:"✓";color:var(--bull);width:14px;flex:none}
+.checks li.no{color:var(--muted)}
+.checks li.no::before{content:"✕";color:var(--bear)}
+
+.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 16px}
+.kv dt{color:var(--muted)} .kv dd{margin:0;text-align:right}
+.up{color:var(--bull)} .down{color:var(--bear)} .flat{color:var(--muted)}
+table{width:100%;border-collapse:collapse}
+td{padding:6px 0;border-bottom:1px solid var(--line)}
+td:last-child{text-align:right}
+.lvl-side{color:var(--muted);font-size:12px}
+.small{font-size:12px;color:var(--muted)}
+footer.note{margin-top:28px;font-size:12px;color:var(--muted)}
+
+@media (max-width:900px){
+  main{grid-template-columns:1fr;height:auto}
+  .chartwrap{height:62vh;border-right:0;border-bottom:1px solid var(--line)}
+  .controls{margin-left:0}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="quote"><span class="sym" id="sym">XAUUSD</span><span class="px" id="px">-</span><span class="chg" id="chg"></span></div>
+  <div class="facts">
+    <span>Session <b id="kz">-</b></span>
+    <span>New York <b id="nyt">-</b></span>
+    <span>Data <b id="src">-</b></span>
+  </div>
+  <div class="controls">
+    <div class="tf" role="group" aria-label="Timeframe">
+      <button data-tf="M1">M1</button><button data-tf="M5">M5</button><button data-tf="M15">M15</button>
+    </div>
+    <button class="ghost" id="alerts">Turn on alerts</button>
+  </div>
+</header>
+<div class="banner" id="banner"></div>
+<main>
+  <section class="chartwrap">
+    <div id="chart"></div>
+    <canvas id="zones"></canvas>
+    <div class="legend" role="group" aria-label="Chart layers">
+      <button data-layer="zones" aria-pressed="true">FVG and order blocks</button>
+      <button data-layer="levels" aria-pressed="true">Liquidity</button>
+      <button data-layer="structure" aria-pressed="false">BOS / CHoCH</button>
+      <button data-layer="sweeps" aria-pressed="true">Sweeps</button>
+    </div>
+  </section>
+  <aside>
+    <div id="signal"></div>
+    <h2>Market context</h2>
+    <dl class="kv" id="context"></dl>
+    <h2>Liquidity nearby</h2>
+    <table id="levels"></table>
+    <h2>Recent signals</h2>
+    <table id="history"></table>
+    <p class="small" id="stats"></p>
+    <footer class="note">Signals come from fixed rules and will often lose. Size every trade for a full stop-out, avoid trading into high-impact news, and test on a demo account first. Chart times are in your local time.</footer>
+  </aside>
+</main>
+
+<script>
+const C={ink:"#141A24",line:"#2B3647",muted:"#8E98A8",text:"#ECE6D6",brass:"#CDA434",bull:"#3DB489",bear:"#E4636E"};
+const TZ=-new Date().getTimezoneOffset()*60;           // shift UTC seconds into local time for display
+const loc=t=>t+TZ;
+const fmt=(x,d=2)=>x==null?"-":Number(x).toFixed(d);
+const $=id=>document.getElementById(id);
+
+let tf=localStorageGet("tf")||"M5", timer=null, lastSignalId=null, state=null, lines=[], lastCandleTime=null;
+const layers={zones:true,levels:true,structure:false,sweeps:true};
+function localStorageGet(k){try{return localStorage.getItem(k)}catch(e){return null}}
+function localStorageSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+
+const chart=LightweightCharts.createChart($("chart"),{
+  autoSize:true,
+  layout:{background:{type:"solid",color:C.ink},textColor:C.muted,fontFamily:getComputedStyle(document.body).fontFamily},
+  grid:{vertLines:{color:"#1C2533"},horzLines:{color:"#1C2533"}},
+  rightPriceScale:{borderColor:C.line},
+  timeScale:{borderColor:C.line,timeVisible:true,secondsVisible:false,rightOffset:8},
+  crosshair:{mode:0}
+});
+const series=chart.addCandlestickSeries({upColor:C.bull,downColor:C.bear,wickUpColor:C.bull,wickDownColor:C.bear,borderVisible:false,priceFormat:{type:"price",precision:2,minMove:0.01}});
+
+// ---------- zones overlay (FVG / order block boxes)
+const canvas=$("zones"), ctx=canvas.getContext("2d");
+function drawZones(){
+  const r=canvas.getBoundingClientRect(), dpr=window.devicePixelRatio||1;
+  canvas.width=r.width*dpr; canvas.height=r.height*dpr; ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,r.width,r.height);
+  if(!state||!layers.zones) return;
+  const ts=chart.timeScale(), right=ts.width();
+  for(const z of state.zones){
+    let x=ts.timeToCoordinate(loc(z.time)); if(x===null) x=0;
+    const y1=series.priceToCoordinate(z.top), y2=series.priceToCoordinate(z.bottom);
+    if(y1===null||y2===null||x>right) continue;
+    const col=z.dir===1?C.bull:C.bear;
+    ctx.globalAlpha=z.kind==="OB"?0.10:0.16; ctx.fillStyle=col;
+    ctx.fillRect(x,Math.min(y1,y2),right-x,Math.max(1,Math.abs(y2-y1)));
+    ctx.globalAlpha=0.55; ctx.strokeStyle=col; ctx.setLineDash(z.kind==="OB"?[4,3]:[]);
+    ctx.strokeRect(x+.5,Math.min(y1,y2)+.5,right-x-1,Math.max(1,Math.abs(y2-y1))-1);
+    ctx.globalAlpha=0.9; ctx.fillStyle=col; ctx.font="11px "+getComputedStyle(document.body).fontFamily;
+    ctx.fillText(z.kind==="OB"?"Order block":"FVG",x+6,Math.min(y1,y2)+12);
+  }
+  ctx.globalAlpha=1; ctx.setLineDash([]);
+}
+chart.timeScale().subscribeVisibleLogicalRangeChange(()=>requestAnimationFrame(drawZones));
+chart.subscribeCrosshairMove(()=>requestAnimationFrame(drawZones));
+new ResizeObserver(()=>requestAnimationFrame(drawZones)).observe(canvas);
+
+// ---------- rendering
+function renderChart(s){
+  const candles=s.candles.map(c=>({...c,time:loc(c.time)}));
+  const lastT=candles[candles.length-1].time;
+  const sameTf=lastCandleTime!==null && s.timeframe===renderChart.tf;
+  if(sameTf && lastT===lastCandleTime){ series.update(candles[candles.length-1]); }
+  else if(sameTf && lastT-lastCandleTime===s.timeframe_minutes*60){
+    series.update(candles[candles.length-2]); series.update(candles[candles.length-1]);
+  } else { series.setData(candles); }
+  lastCandleTime=lastT; renderChart.tf=s.timeframe;
+
+  const first=candles[0].time;
+  const mk=[];
+  for(const m of s.markers){
+    const t=loc(m.time); if(t<first) continue;
+    if(m.kind==="signal") mk.push({time:t,position:m.dir===1?"belowBar":"aboveBar",shape:m.dir===1?"arrowUp":"arrowDown",color:C.brass,text:m.text,size:1.4});
+    else if(m.kind==="sweep"&&layers.sweeps) mk.push({time:t,position:m.dir===1?"belowBar":"aboveBar",shape:"circle",color:C.muted,text:m.text,size:.6});
+    else if(m.kind==="structure"&&layers.structure) mk.push({time:t,position:m.dir===1?"aboveBar":"belowBar",shape:"square",color:m.dir===1?C.bull:C.bear,text:m.text,size:.4});
+  }
+  mk.sort((a,b)=>a.time-b.time); series.setMarkers(mk);
+
+  lines.forEach(l=>series.removePriceLine(l)); lines=[];
+  const add=(price,color,title,style=2,width=1)=>lines.push(series.createPriceLine({price,color,title,lineStyle:style,lineWidth:width,axisLabelVisible:true}));
+  if(layers.levels){
+    for(const l of s.levels) if(/PD|Asian|EQ/.test(l.kind)) add(l.price,l.side==="high"?"#9C7F86":"#7F9C92",l.kind,2);
+    if(s.day_open) add(s.day_open,C.muted,"NY open",1);
+  }
+  if(s.current){const c=s.current; add(c.entry,C.brass,"Entry",0,2); add(c.sl,C.bear,"Stop",0,1); add(c.tp,C.bull,"Target",0,1);}
+  requestAnimationFrame(drawZones);
+}
+
+function renderSignal(s){
+  const c=s.current, el=$("signal");
+  if(!c){
+    const kz=s.session.killzone;
+    const why=s.session.weekend?"The gold market is closed for the weekend.":
+      (kz==="London"||kz==="New York AM")?`Inside the ${kz} killzone. Watching for a liquidity sweep followed by a structure shift.`:
+      "Outside the London and New York killzones. New setups are only taken inside them.";
+    el.innerHTML=`<p class="verb wait">Wait</p><p class="status">${why}</p>`;
+    return;
+  }
+  const d=c.dir, buy=d===1;
+  const top=buy?c.tp:c.sl, bot=buy?c.sl:c.tp;
+  const split=Math.round(100*(top-c.entry)/(top-bot));
+  const st=c.status==="active"?`<b>In trade</b> since ${new Date(c.fill_time*1000).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}, now ${c.live_r>=0?"+":""}${fmt(c.live_r)}R`
+        :`<b>Limit order</b> waiting for price to reach the entry, ${fmt(Math.abs(c.distance))} away`;
+  const rung=(cls,label,price,extra)=>`<div class="rung ${cls}"><span>${label}</span><strong>${fmt(price)}<em>${extra}</em></strong></div>`;
+  const tpR=`${fmt(c.rr,1)}R, ${c.tp_kind}`, slR="1R";
+  const rows=buy?[rung("","Target",c.tp,tpR),rung("entry","Entry",c.entry,"FVG midpoint"),rung("","Stop",c.sl,slR)]
+                :[rung("","Stop",c.sl,slR),rung("entry","Entry",c.entry,"FVG midpoint"),rung("","Target",c.tp,tpR)];
+  el.innerHTML=`
+    <p class="verb ${buy?"buy":"sell"}">${buy?"Buy":"Sell"}</p>
+    <p class="status">${st}${c.note?`<br><b>${c.note}</b>`:""}</p>
+    <div class="ladder" style="--c1:${buy?C.bull:C.bear};--c2:${buy?C.bear:C.bull};--split:${split}%">
+      <div class="rail"></div>${rows.map(r=>`<div style="grid-column:2/4">${r}</div>`).join("")}
+    </div>
+    <div class="score"><span>Confluence ${c.score} of 100</span><div class="bar"><i style="width:${c.score}%"></i></div></div>
+    <ul class="checks">${c.reasons.map(r=>`<li class="${r.ok?"":"no"}">${r.text}</li>`).join("")}</ul>`;
+}
+
+function trendWord(t){return t===1?'<span class="up">Bullish</span>':t===-1?'<span class="down">Bearish</span>':'<span class="flat">Undecided</span>'}
+function renderSide(s){
+  const cx=s.context, p=s.price;
+  const zone=p>cx.equilibrium?'<span class="down">Premium</span>':'<span class="up">Discount</span>';
+  const vsOpen=s.day_open?(p>=s.day_open?'<span class="up">Above</span>':'<span class="down">Below</span>'):"-";
+  $("context").innerHTML=`
+    <dt>${s.htf} structure</dt><dd>${trendWord(cx.htf_trend)}</dd>
+    <dt>${s.timeframe} structure</dt><dd>${trendWord(cx.ltf_trend)}</dd>
+    <dt>24h range position</dt><dd>${zone}</dd>
+    <dt>vs NY midnight open</dt><dd>${vsOpen}</dd>
+    <dt>ATR (${s.timeframe})</dt><dd>${fmt(cx.atr)}</dd>`;
+  $("levels").innerHTML=[...s.levels].sort((a,b)=>b.price-a.price).map(l=>
+    `<tr><td>${l.kind} <span class="lvl-side">${l.side==="high"?"buy stops above":"sell stops below"}</span></td><td>${fmt(l.price)} <span class="small">${fmt(l.price-p,1)}</span></td></tr>`).join("")||'<tr><td class="small">No active levels yet</td></tr>';
+  const res={win:"Target hit",loss:"Stopped",timeout:"Timed out",missed:"Never filled",expired:"Expired",replaced:"Replaced",pending:"Waiting",active:"Open"};
+  $("history").innerHTML=s.history.slice(0,10).map(h=>{
+    const t=new Date(h.time*1000).toLocaleString([], {month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"});
+    const r=h.r==null?"":` <span class="${h.r>0?"up":"down"}">${h.r>0?"+":""}${fmt(h.r,1)}R</span>`;
+    return `<tr><td><span class="${h.dir===1?"up":"down"}">${h.dir===1?"Buy":"Sell"}</span> ${fmt(h.entry)} <span class="small">${t}</span></td><td>${res[h.status]}${r}</td></tr>`;
+  }).join("")||'<tr><td class="small">No signals in the loaded history</td></tr>';
+  const st=s.stats;
+  $("stats").textContent=st.trades?`On the ${s.timeframe} bars loaded: ${st.trades} filled trades, ${st.win_rate}% closed positive, average ${st.avg_r>0?"+":""}${st.avg_r}R, total ${st.total_r>0?"+":""}${st.total_r}R. Run backtest.py for a longer test.`:"Not enough completed trades in the loaded history to show results.";
+}
+
+function renderTop(s){
+  $("sym").textContent=s.symbol; $("px").textContent=fmt(s.price);
+  if(s.day_open){const ch=s.price-s.day_open; $("chg").innerHTML=`<span class="${ch>=0?"up":"down"}">${ch>=0?"+":""}${fmt(ch)}</span> <span class="small">since NY open</span>`;}
+  $("kz").textContent=s.session.weekend?"Market closed":(s.session.killzone||"Between killzones");
+  $("nyt").textContent=s.session.ny_time; $("src").textContent=s.source;
+  const b=$("banner");
+  if(/demo/i.test(s.source)){b.className="banner";b.style.display="block";b.textContent="Demo mode: these prices are synthetic, not the real market. Add your Exness MT5 login or a Twelve Data key in the .env file to use live data.";}
+  else b.style.display="none";
+  document.title=`${fmt(s.price)} XAUUSD signal desk`;
+}
+
+function notify(s){
+  const c=s.current; if(!c||c.id===lastSignalId) return;
+  const first=lastSignalId===null; lastSignalId=c.id; if(first) return;
+  const msg=`${c.dir===1?"Buy":"Sell"} XAUUSD at ${fmt(c.entry)}, stop ${fmt(c.sl)}, target ${fmt(c.tp)}`;
+  try{const a=new AudioContext(),o=a.createOscillator(),g=a.createGain();o.frequency.value=880;g.gain.value=.08;o.connect(g).connect(a.destination);o.start();o.stop(a.currentTime+.25);}catch(e){}
+  if("Notification" in window&&Notification.permission==="granted") new Notification("New gold signal",{body:msg});
+}
+
+async function poll(){
+  clearTimeout(timer);
+  let wait=5;
+  try{
+    const r=await fetch(`/api/state?tf=${tf}`); const s=await r.json();
+    if(!r.ok) throw new Error(s.error||r.statusText);
+    state=s; wait=s.poll_seconds;
+    renderTop(s); renderChart(s); renderSignal(s); renderSide(s); notify(s);
+  }catch(e){
+    const b=$("banner"); b.className="banner err"; b.style.display="block";
+    b.textContent=`Could not load prices: ${e.message}. Retrying in 10 seconds.`; wait=10;
+  }
+  timer=setTimeout(poll,wait*1000);
+}
+
+// ---------- controls
+document.querySelectorAll(".tf button").forEach(btn=>{
+  btn.setAttribute("aria-pressed",btn.dataset.tf===tf);
+  btn.onclick=()=>{tf=btn.dataset.tf;localStorageSet("tf",tf);lastCandleTime=null;lastSignalId=null;
+    document.querySelectorAll(".tf button").forEach(x=>x.setAttribute("aria-pressed",x===btn));poll();};
+});
+document.querySelectorAll(".legend button").forEach(btn=>{
+  btn.setAttribute("aria-pressed",layers[btn.dataset.layer]);
+  btn.onclick=()=>{layers[btn.dataset.layer]=!layers[btn.dataset.layer];btn.setAttribute("aria-pressed",layers[btn.dataset.layer]);if(state)renderChart(state);};
+});
+$("alerts").onclick=async()=>{
+  if(!("Notification" in window)){$("alerts").textContent="Alerts not supported";return;}
+  const p=await Notification.requestPermission();
+  $("alerts").textContent=p==="granted"?"Alerts on":"Alerts blocked";
+};
+if("Notification" in window&&Notification.permission==="granted") $("alerts").textContent="Alerts on";
+poll();
+</script>
+</body>
+</html>
